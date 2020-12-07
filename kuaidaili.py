@@ -11,7 +11,7 @@ from fake_useragent import UserAgent
 def get_user_agent(num):
     """
     生成不同的 user-agent
-    :param num: 生成个数
+    :param num: 生成user-agent的个数
     :return: list
     """
     useragent = UserAgent()
@@ -78,8 +78,7 @@ def get_proxy(pages, ua_num, target_url):
 
     finally:
         # 调用保存的方法
-        # write_proxy(proxy_list)
-        pass
+        write_proxy(proxy_list)
 
     return proxy_list
 
@@ -155,8 +154,3 @@ if __name__ == '__main__':
     main()
     # 2.读取代理池
     # read_ip()
-
-
-
-
-
