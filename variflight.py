@@ -1,13 +1,7 @@
-from contextlib import nullcontext
-from datetime import date
-from numpy.core.fromnumeric import var
-from numpy.lib.function_base import select
+import datetime
+import time
 import requests
 import json
-import re
-from bs4 import BeautifulSoup as bs
-import time
-import random
 import xundaili
 
 from lxml import etree
@@ -15,12 +9,12 @@ from lxml import etree
 class VariFlightSpider(object):
     def __init__(self):
         self.start_url = 'http://www.variflight.com'
+        self.file_name = datetime.datetime.now().strftime('%Y-%m-%d')+"-flight.json"    #写入的文件名 2020-12-08-flight.json，其中每天爬取的数据会存入以当天日期命名的json文件中
 
     '''
     获得所有的航班列表
-    :return: list
+    :return: list 访问的航班url列表
     '''
-
     def get_flight_list(self):
         headers = {}
         headers['User-Agent'] = "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.198 Safari/537.36"
@@ -28,6 +22,7 @@ class VariFlightSpider(object):
         # print(r)
         selector = etree.HTML(r.text)
 
+        #通过xpath获取需要的数据
         url_list = selector.xpath('//*[@class="list"]/a/@href')[1:]
 
         flight_url_list = []
@@ -44,7 +39,7 @@ class VariFlightSpider(object):
     '''
     def get_next_url(self,flight_url):
         headers = xundaili.headers
-        headers['Referer'] = 'http://www.variflight.com/sitemap.html?AE71649A58c77='
+        headers['Referer'] = 'http://www.variflight.com/sitemap.html?AE71649A58c77='            #必须在请求头中加入Referer字段，否则会返回406
         i = 0
         flag = False
         #尝试十次
@@ -111,12 +106,18 @@ class VariFlightSpider(object):
             return None
     
     '''
+    把获得的时间标准化处理一下
+    '''
+    def timeformat(self,timestamp):
+        timestr = time.strftime('%Y/%m/%d %H:%M:%S',time.localtime(timestamp)) if timestamp else '--'
+        return timestr
+
+    '''
     访问那个json_url
     提取出我们所需要的数据
     '''
     def parse_data(self, json_url):
         headers = xundaili.headers
-        #尝试十次
         i = 0
         flag = False
         #尝试十次
@@ -132,10 +133,19 @@ class VariFlightSpider(object):
         if flag:
             myjson = r.json()
             data = myjson.get('data', {})
+            scheduled_deptime = self.timeformat(data.get('scheduledDeptime',0)) # 计划出发
+            actual_deptime = self.timeformat(data.get('actualDeptime',0)) # 实际出发
+            scheduled_arrtime = self.timeformat(data.get('scheduledArrtime',0)) # 计划到达
+            actual_arrtime = self.timeformat(data.get('actualArrtime',0)) # 实际到达
+            data['scheduledDeptime'] = scheduled_deptime
+            data['actualDeptime'] = actual_deptime
+            data['scheduledArrtime'] = scheduled_arrtime
+            data['actualArrtime'] = actual_arrtime
             #保存数据到文件中
             try:
-                with open("flight.json",'a',encoding="utf-8") as fp:
-                    fp.write(json.dumps(data,ensure_ascii=False)+",\n")
+                print(self.file_name)
+                with open(self.file_name,'a',encoding="utf-8") as fp:
+                    fp.write(json.dumps(data,ensure_ascii=False, indent=1)+",\n")
             except FileNotFoundError as err:
                 pass
             except IOError as err:
@@ -153,13 +163,16 @@ def main():
     获取一个航班列表的list
     '''
     flight_list = variflightspider.get_flight_list()
-
+    # print(len(flight_list))
     i = 0
-    while i < 200 :
+
+    flight_nums = 2000 #默认爬取数据大小，可以修改大小，最大为 len(flight_list)
+
+    while i < flight_nums :
         print("======================================第{}次爬取数据===============================".format(i))
         i = i + 1
         try:
-            flight_url = flight_list[12+i+200]
+            flight_url = flight_list[12+i]
             next_url = variflightspider.get_next_url(flight_url)
             print(next_url)
             if next_url != None:
